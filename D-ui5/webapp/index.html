@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>D Bulk Edit</title>
+    <style>
+      html, body, body > div, #container, #container-uiarea {
+        height: 100%;
+      }
+    </style>
+    <!--
+      data-sap-ui-flexibility-services について（★ローカル開発では必須）
+
+      テーブルの並べ替え・列変更（MDC の personalization）は UI5 Flexibility の仕組みで
+      保存されます。その保存先＝コネクタの既定値は
+
+          [{ url: "/sap/bc/lrep", connector: "LrepConnector" }]
+
+      で、ABAP の LREP サーバへ HTTP リクエストを飛ばします。
+      ローカルの ui5 serve にそんなエンドポイントは無いので 404 が返り、
+      コンソールに「Uncaught (in promise) Error: Not Found」が出て
+      並べ替えが適用されません（歯車で指定しても元の並びに戻る）。
+
+      そこで保存先をブラウザの localStorage に変えています。HTTP は発生しません。
+      ※ここで localStorage を使うのは「画面の見た目の設定」の保存先としてであり、
+        業務の検索条件をブラウザに持たせているわけではありません（アプリCの方式とは別物）。
+
+      属性名がハイフン区切りなのは、UI5 が data-sap-ui-<name> の <name> を
+      _camelize（"-x" → "X"）して設定キーにするためです。
+      camelCase で書くと HTML が小文字化するので sapUiFlexibilityservices となり、
+      本来のキー sapUiFlexibilityServices に一致しません。
+    -->
+    <script
+      id="sap-ui-bootstrap"
+      src="https://sapui5.hana.ondemand.com/1.149.1/resources/sap-ui-core.js"
+      data-sap-ui-flexibility-services='[{"connector": "LocalStorageConnector"}]'
+      data-sap-ui-theme="sap_horizon"
+      data-sap-ui-resource-roots='{
+        "d.bulk.edit.ui": "./"
+      }'
+      data-sap-ui-on-init="module:sap/ui/core/ComponentSupport"
+      data-sap-ui-compat-version="edge"
+      data-sap-ui-async="true"
+      data-sap-ui-xx-componentPreload="off"
+      data-sap-ui-frame-options="trusted">
+    </script>
+  </head>
+  <body class="sapUiBody sapUiSizeCompact" id="content">
+    <div
+      data-sap-ui-component
+      data-name="d.bulk.edit.ui"
+      data-id="container"
+      data-settings='{"id":"d.bulk.edit.ui"}'
+      data-handle-validation="true">
+    </div>
+  </body>
+</html>

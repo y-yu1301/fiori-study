@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=https://sap.github.io/ui5-tooling/schema/ui5.yaml.json
+
+specVersion: "4.0"
+metadata:
+  name: movies
+type: application
+server:
+  settings:
+    httpPort: 8083
+  customMiddleware:
+    - name: fiori-tools-proxy
+      afterMiddleware: compression
+      configuration:
+        ignoreCertErrors: false
+        # ★独立サーバ型の要：/odata を、別プロジェクトのバックエンド B-cap(4005) へ転送。
+        #   この UI5(B-ui5) は CAP のファイルを一切参照せず、OData(HTTP) だけで接続する。
+        backend:
+          - path: /odata
+            url: http://localhost:4005
+        ui5:
+          path:
+            - /resources
+            - /test-resources
+          url: https://sapui5.hana.ondemand.com
+    - name: fiori-tools-appreload
+      afterMiddleware: compression
+      configuration:
+        port: 35730
+        path: webapp
+        delay: 300

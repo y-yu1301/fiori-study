@@ -1,0 +1,98 @@
+// =============================================================================
+// devcontainer.json （CAP Java 版）
+// -----------------------------------------------------------------------------
+// このファイルは VS Code に「どうやって開発用コンテナを起動するか」を教えます。
+// 「Reopen in Container」を実行すると、この内容に従って環境が組み立てられます。
+//
+  // ★このプロジェクトは CAP Java を学ぶための構成です。
+//   Dockerfile が Node(開発ツール)、下の "features" が Java + Maven(実行/ビルド) を用意します。
+//
+// ※ JSONC 形式（コメント付き JSON）です。// でコメントを書けます。
+// =============================================================================
+{
+  // コンテナの表示名（VS Code 左下の緑バッジに出ます）
+  "name": "SAP CAP (Java) + Fiori Elements 学習環境",
+
+  // 同じフォルダの Dockerfile を使ってイメージをビルドする、という指定。
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+
+  // ---------------------------------------------------------------------------
+  // features = 既製の追加ツールを宣言的に足す仕組み。
+  //   ここで Java(JDK) と Maven をイメージに追加します。
+  //   - version 21 = CAP Java が推奨する LTS（17 も可）。
+  //   - installMaven true = Maven も一緒に入れる（別途インストール不要）。
+  // ---------------------------------------------------------------------------
+  "features": {
+    "ghcr.io/devcontainers/features/java:1": {
+      "version": "21",
+      "installMaven": true,
+      "jdkDistro": "ms" // Microsoft Build of OpenJDK（arm64 対応・軽量）
+    }
+  },
+
+  // ---------------------------------------------------------------------------
+  // ポートフォワード：コンテナ内サーバへ Mac のブラウザから繋ぐ設定。
+  //   6つの独立プロジェクト（A〜F）のバックエンドとフロントを開けます。
+  //   バックエンド(CAP Java)     : A〜F = 4004〜4009
+  //   フロント(UI5 開発サーバ)   : A〜F = 8082〜8087
+  //   各フロントは自分の ui5.yaml の proxy で、対応するバックエンドの /odata へ繋ぎます。
+  // ---------------------------------------------------------------------------
+  "forwardPorts": [4004, 4005, 4006, 4007, 4008, 4009, 8082, 8083, 8084, 8085, 8086, 8087],
+  "portsAttributes": {
+    "4004": { "label": "A-cap : bookshop backend (OData)" },
+    "4005": { "label": "B-cap : movies backend (OData)" },
+    "4006": { "label": "C-cap : filter-edit backend (OData)" },
+    "4007": { "label": "D-cap : bulk-edit backend (OData)" },
+    "4008": { "label": "E-cap : header-edit backend (OData)" },
+    "4009": { "label": "F-cap : retry-edit backend (OData)" },
+    "8082": { "label": "A-ui5 : bookshop frontend (ui5 serve)" },
+    "8083": { "label": "B-ui5 : movies frontend (ui5 serve)" },
+    "8084": { "label": "C-ui5 : filter-edit frontend (ui5 serve)" },
+    "8085": { "label": "D-ui5 : bulk-edit frontend (ui5 serve)" },
+    "8086": { "label": "E-ui5 : header-edit frontend (ui5 serve)" },
+    "8087": { "label": "F-ui5 : retry-edit frontend (ui5 serve)" }
+  },
+
+  // ---------------------------------------------------------------------------
+  // node_modules を「名前付きボリューム」に載せる設定。
+  //   macOS では bind mount 上の node_modules は読み書きが遅いので、
+  //   コンテナ専用の高速ボリュームに逃がします（cds-dk プラグイン等の取得が快適に）。
+  // ---------------------------------------------------------------------------
+  "mounts": [
+    "source=fiori-study-node_modules,target=${containerWorkspaceFolder}/node_modules,type=volume"
+  ],
+
+  // ---------------------------------------------------------------------------
+  // コンテナ内に自動インストールする拡張機能。
+  // ---------------------------------------------------------------------------
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        // CDS(.cds ファイル) のシンタックスハイライト・補完・エラー表示
+        "SAPSE.sap-cds",
+        // ★Fiori tools 拡張パック（Application Generator / Page Map / Guided Dev）
+        "SAPOSS.sap-ux-fiori-tools-extension-pack",
+        // 上の拡張が依存する共通基盤
+        "SAPOSS.app-studio-toolkit",
+        // ★Java 開発一式（言語サーバ・デバッガ・Maven 連携）。現場のコードを書く本体。
+        "vscjava.vscode-java-pack",
+        // Spring Boot 支援（CAP Java は Spring Boot 上で動くため相性が良い）
+        "vmware.vscode-boot-dev-pack"
+      ]
+    }
+  },
+
+  // ---------------------------------------------------------------------------
+  // コンテナ作成後に一度だけ実行するコマンド。
+  //   ① node_modules ボリュームの所有者を node に修正する。
+  //      名前付きボリュームは初期状態で root 所有のため、そのままだと
+  //      Maven ビルド中の `npm ci`(cds-dk 取得) が EACCES で失敗する。
+  //   ② ツールの版を表示して導入確認。
+  // ---------------------------------------------------------------------------
+  "postCreateCommand": "sudo chown -R node:node node_modules || true; java -version; mvn -v; cds -v",
+
+  // コンテナ内で使う一般ユーザー（root を避けて権限問題を予防）
+  "remoteUser": "node"
+}

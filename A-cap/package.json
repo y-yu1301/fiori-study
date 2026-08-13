@@ -1,0 +1,12 @@
+{
+  "//": "A アプリ(bookshop) のバックエンド。独立した CAP Java プロジェクト。",
+  "//sapux": "以前あった sapux(モノレポ内UI5参照) は分離により削除。UI5は別プロジェクト(A-ui5)。",
+  "name": "a-cap",
+  "version": "1.0.0",
+  "description": "A app (bookshop) backend - standalone CAP Java project",
+  "license": "ISC",
+  "//devDependencies": "cds コマンド(開発ツール)。アプリ実行は Maven/Java 側。",
+  "devDependencies": {
+    "@sap/cds-dk": "^8.9.3"
+  }
+}

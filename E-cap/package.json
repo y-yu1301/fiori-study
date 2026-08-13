@@ -1,0 +1,9 @@
+{
+  "name": "e-cap",
+  "version": "1.0.0",
+  "description": "Header-driven List Report search handover sample",
+  "license": "ISC",
+  "devDependencies": {
+    "@sap/cds-dk": "^8.9.3"
+  }
+}

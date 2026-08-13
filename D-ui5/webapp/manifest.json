@@ -1,0 +1,168 @@
+{
+  "_version": "1.85.0",
+  "sap.app": {
+    "id": "d.bulk.edit.ui",
+    "type": "application",
+    "i18n": "i18n/i18n.properties",
+    "applicationVersion": {
+      "version": "0.0.1"
+    },
+    "title": "{{appTitle}}",
+    "description": "{{appDescription}}",
+    "resources": "resources.json",
+    "dataSources": {
+      "mainService": {
+        "uri": "/odata/v4/BulkEditService/",
+        "type": "OData",
+        "settings": {
+          "annotations": [],
+          "odataVersion": "4.0"
+        }
+      }
+    }
+  },
+  "sap.ui": {
+    "technology": "UI5",
+    "deviceTypes": {
+      "desktop": true,
+      "tablet": true,
+      "phone": true
+    }
+  },
+  "sap.ui5": {
+    "flexEnabled": true,
+    "dependencies": {
+      "minUI5Version": "1.149.1",
+      "libs": {
+        "sap.m": {},
+        "sap.ui.core": {},
+        "sap.fe.templates": {}
+      }
+    },
+    "contentDensities": {
+      "compact": true,
+      "cozy": true
+    },
+    "models": {
+      "i18n": {
+        "type": "sap.ui.model.resource.ResourceModel",
+        "settings": {
+          "bundleName": "d.bulk.edit.ui.i18n.i18n",
+          "supportedLocales": [
+            "",
+            "en",
+            "ja"
+          ],
+          "fallbackLocale": ""
+        }
+      },
+      "": {
+        "dataSource": "mainService",
+        "preload": true,
+        "settings": {
+          "operationMode": "Server",
+          "autoExpandSelect": true,
+          "earlyRequests": true
+        }
+      }
+    },
+    "resources": {
+      "css": []
+    },
+    "routing": {
+      "config": {},
+      "routes": [
+        {
+          "pattern": ":?query:",
+          "name": "PurchaseRequestsList",
+          "target": "PurchaseRequestsList"
+        },
+        {
+          "pattern": "Sessions({key}):?query:",
+          "name": "SessionObjectPage",
+          "target": "SessionObjectPage"
+        }
+      ],
+      "targets": {
+        "PurchaseRequestsList": {
+          "type": "Component",
+          "id": "PurchaseRequestsList",
+          "name": "sap.fe.templates.ListReport",
+          "options": {
+            "settings": {
+              "contextPath": "/PurchaseRequests",
+              "variantManagement": "Page",
+              "initialLoad": "Enabled",
+              "controlConfiguration": {
+                "@com.sap.vocabularies.UI.v1.SelectionFields": {
+                  "filterFields": {
+                    "requestDate": {
+                      "settings": {
+                        "defaultValues": [
+                          {
+                            "operator": "NEXTXDAYSINCLUDED",
+                            "values": [
+                              60
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                "@com.sap.vocabularies.UI.v1.LineItem": {
+                  "tableSettings": {
+                    "type": "ResponsiveTable",
+                    "selectionMode": "None"
+                  },
+                  "actions": {
+                    "bulkEdit": {
+                      "press": "d.bulk.edit.ui.ext.BulkEditHandler.onBulkEdit",
+                      "text": "{i18n>bulkEditAction}",
+                      "enabled": true,
+                      "requiresSelection": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "SessionObjectPage": {
+          "type": "Component",
+          "id": "SessionObjectPage",
+          "name": "sap.fe.templates.ObjectPage",
+          "options": {
+            "settings": {
+              "contextPath": "/Sessions",
+              "editableHeaderContent": false,
+              "controlConfiguration": {
+                "items/@com.sap.vocabularies.UI.v1.LineItem": {
+                  "tableSettings": {
+                    "type": "ResponsiveTable",
+                    "enableFullScreen": true,
+                    "selectionMode": "None",
+                    "personalization": {
+                      "sort": true,
+                      "column": true,
+                      "filter": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "sap.fiori": {
+    "registrationIds": [],
+    "archeType": "transactional"
+  },
+  "sap.fe": {
+    "app": {
+      "enableLazyLoading": true
+    }
+  }
+}

@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=https://sap.github.io/ui5-tooling/schema/ui5.yaml.json
+
+specVersion: "4.0"
+metadata:
+  name: f-retry-edit-ui
+type: application
+builder:
+  customTasks:
+    - name: ui5-tooling-transpile-task
+      afterTask: replaceVersion
+      configuration:
+        transformTypeScript: true
+        transformModulesToUI5:
+          overridesToOverride: true
+        omitTSFromBuildResult: true
+server:
+  settings:
+    httpPort: 8087
+  customMiddleware:
+    - name: ui5-tooling-transpile-middleware
+      afterMiddleware: compression
+      configuration:
+        transformTypeScript: true
+        transformModulesToUI5:
+          overridesToOverride: true
+    - name: fiori-tools-proxy
+      afterMiddleware: compression
+      configuration:
+        ignoreCertErrors: false
+        backend:
+          - path: /odata
+            url: http://localhost:4009
+        ui5:
+          path: [/resources, /test-resources]
+          url: https://sapui5.hana.ondemand.com
+    - name: fiori-tools-appreload
+      afterMiddleware: compression
+      configuration:
+        port: 35734
+        path: webapp
+        delay: 300

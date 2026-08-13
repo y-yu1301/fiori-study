@@ -1,0 +1,63 @@
+# =============================================================================
+# アプリD バックエンドの実行設定
+# -----------------------------------------------------------------------------
+# ポートは他プロジェクトと重ならないようにしています。
+#   A-cap=4004 / B-cap=4005 / C-cap=4006 / D-cap=4007
+# フロント(D-ui5)は自分の ui5.yaml の proxy で、この 4007 の /odata へ接続します。
+# =============================================================================
+server:
+  port: 4007
+
+spring:
+  config.activate.on-profile: default
+  # schema-h2.sql（cds-maven-plugin が生成した DDL）を起動時に流します。
+  sql.init.platform: h2
+
+cds:
+  # CAP が用意する H2 インメモリ DataSource を使うので Spring 側の自動設定は切ります。
+  data-source.auto-config.enabled: false
+
+  # ---------------------------------------------------------------------------
+  # ローカル学習用のモックユーザー
+  # ---------------------------------------------------------------------------
+  # ブラウザで最初にアクセスすると Basic 認証のダイアログが出ます。
+  # 下のいずれかで入ってください（パスワードはユーザー名と同じ）。
+  #
+  #   admin / admin … 管理者っぽい役
+  #   user1 / user1 … 一般ユーザーA
+  #   user2 / user2 … 一般ユーザーB
+  #
+  # ★user1 で作った編集セッションは user2 からは見えません。
+  #   Sessions に付けた @restrict(where: 'createdBy = $user') の効き目を、
+  #   ブラウザのシークレットウィンドウで user2 として開くと体感できます。
+  security:
+    mock:
+      users:
+        - name: admin
+          password: admin
+          roles:
+            - authenticated-user
+        - name: user1
+          password: user1
+          roles:
+            - authenticated-user
+        - name: user2
+          password: user2
+          roles:
+            - authenticated-user
+
+# -----------------------------------------------------------------------------
+# アプリD 固有の設定（BulkEditProperties.java が読み取ります）
+# -----------------------------------------------------------------------------
+bulk-edit:
+  # 1セッションに詰め込める最大件数。フロント側の上限と必ず揃えること。
+  #   → D-ui5/webapp/ext/BulkEditHandler.ts の MAX_ITEMS
+  max-items: 500
+  # 未反映セッションを掃除するまでの時間（時間単位）
+  cleanup-after-hours: 24
+  # 掃除処理を回す間隔（ミリ秒）。ここでは1時間ごと。
+  cleanup-interval-ms: 3600000
+
+logging:
+  level:
+    customer.d_bulk_edit: DEBUG

@@ -1,0 +1,12 @@
+ID;name;keyword;targetDate;status;assignee;plannedQuantity;actualQuantity;comment
+770e8400-e29b-41d4-a716-446655440101;August Task 001;summer;2026-08-01;Open;Sato;10;0;Initial plan
+770e8400-e29b-41d4-a716-446655440102;August Task 002;summer;2026-08-04;Open;Suzuki;12;0;Target from LR filter
+770e8400-e29b-41d4-a716-446655440103;August Task 003;summer;2026-08-08;Open;Tanaka;8;0;Editable sample
+770e8400-e29b-41d4-a716-446655440104;August Task 004;summer;2026-08-12;Open;Ito;15;0;Editable sample
+770e8400-e29b-41d4-a716-446655440105;August Task 005;summer;2026-08-20;Open;Kato;9;0;Outside 8/4-8/12
+770e8400-e29b-41d4-a716-446655440106;August Task 006;trial;2026-08-05;Open;Sato;20;0;Another keyword
+770e8400-e29b-41d4-a716-446655440107;August Task 007;trial;2026-08-10;Open;Suzuki;18;0;Another keyword
+770e8400-e29b-41d4-a716-446655440108;August Task 008;trial;2026-08-31;Open;Tanaka;5;0;End of month
+770e8400-e29b-41d4-a716-446655440109;August Task 009;partner;2026-08-12;Open;Ito;11;0;Partner task
+770e8400-e29b-41d4-a716-446655440110;August Task 010;partner;2026-08-15;Open;Kato;7;0;Partner task
+770e8400-e29b-41d4-a716-446655440111;September Task 001;prep;2026-09-02;Open;Sato;13;0;September item

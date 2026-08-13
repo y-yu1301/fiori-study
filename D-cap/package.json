@@ -1,0 +1,9 @@
+{
+  "name": "d-cap",
+  "version": "1.0.0",
+  "description": "D app backend - bulk edit of a whole List Report filter result via an edit session",
+  "license": "ISC",
+  "devDependencies": {
+    "@sap/cds-dk": "^8.9.3"
+  }
+}

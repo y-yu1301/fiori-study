@@ -1,0 +1,23 @@
+{
+  "name": "b-ui5",
+  "version": "0.0.1",
+  "description": "B app (movies) frontend - standalone SAP Fiori (UI5) application",
+  "keywords": [
+    "ui5",
+    "openui5",
+    "sapui5"
+  ],
+  "main": "webapp/index.html",
+  "dependencies": {},
+  "devDependencies": {
+    "@ui5/cli": "^4.0.33",
+    "@sap/ux-ui5-tooling": "1",
+    "@sap-ux/eslint-plugin-fiori-tools": "^10.0.0",
+    "eslint": "^10"
+  },
+  "scripts": {
+    "//start": "UI5開発サーバで movies アプリを配信。ポートと /odata proxy は ui5.yaml で管理する。",
+    "start": "ui5 serve --open index.html",
+    "deploy-config": "npx -p @sap/ux-ui5-tooling fiori add deploy-config cf"
+  }
+}

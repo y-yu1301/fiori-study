@@ -1,0 +1,14 @@
+<core:FragmentDefinition
+  xmlns="sap.m"
+  xmlns:core="sap.ui.core">
+  <!--
+    ObjectPageExt.controller.ts がセットする searchContext モデルを表示するヘッダーFacet。
+    summary が空の場合は、List Report から検索条件なしで遷移した扱いなので非表示にします。
+  -->
+  <VBox visible="{= !!${searchContext>/summary} }">
+    <ObjectStatus
+      title="検索条件"
+      text="{searchContext>/summary}"
+      state="Information" />
+  </VBox>
+</core:FragmentDefinition>

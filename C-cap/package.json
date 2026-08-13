@@ -1,0 +1,9 @@
+{
+  "name": "c-cap",
+  "version": "1.0.0",
+  "description": "C app backend - List Report filter handover to editable Object Page table",
+  "license": "ISC",
+  "devDependencies": {
+    "@sap/cds-dk": "^8.9.3"
+  }
+}

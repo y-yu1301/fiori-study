@@ -1,0 +1,113 @@
+{
+  "_version": "1.85.0",
+  "sap.app": {
+    "id": "e.header.edit.ui",
+    "type": "application",
+    "i18n": "i18n/i18n.properties",
+    "applicationVersion": { "version": "0.0.1" },
+    "title": "{{appTitle}}",
+    "description": "{{appDescription}}",
+    "dataSources": {
+      "mainService": {
+        "uri": "/odata/v4/WorkItemService/",
+        "type": "OData",
+        "settings": { "annotations": [], "odataVersion": "4.0" }
+      }
+    }
+  },
+  "sap.ui": {
+    "technology": "UI5",
+    "deviceTypes": { "desktop": true, "tablet": true, "phone": true }
+  },
+  "sap.ui5": {
+    "flexEnabled": false,
+    "dependencies": {
+      "minUI5Version": "1.149.1",
+      "libs": { "sap.m": {}, "sap.ui.core": {}, "sap.fe.templates": {} }
+    },
+    "contentDensities": { "compact": true, "cozy": true },
+    "models": {
+      "i18n": {
+        "type": "sap.ui.model.resource.ResourceModel",
+        "settings": {
+          "bundleName": "e.header.edit.ui.i18n.i18n",
+          "supportedLocales": ["", "en", "ja"],
+          "fallbackLocale": ""
+        }
+      },
+      "": {
+        "dataSource": "mainService",
+        "preload": true,
+        "settings": {
+          "operationMode": "Server",
+          "autoExpandSelect": true,
+          "earlyRequests": true
+        }
+      }
+    },
+    "extends": {
+      "extensions": {
+        "sap.ui.controllerExtensions": {
+          "sap.fe.templates.ListReport.ListReportController": {
+            "controllerName": "e.header.edit.ui.ext.controller.ListReportExt"
+          },
+          "sap.fe.templates.ObjectPage.ObjectPageController": {
+            "controllerName": "e.header.edit.ui.ext.controller.ObjectPageExt"
+          }
+        }
+      }
+    },
+    "routing": {
+      "config": {},
+      "routes": [
+        { "pattern": ":?query:", "name": "WorkItemsList", "target": "WorkItemsList" },
+        { "pattern": "WorkItems({key}):?query:", "name": "WorkItemsObjectPage", "target": "WorkItemsObjectPage" }
+      ],
+      "targets": {
+        "WorkItemsList": {
+          "type": "Component",
+          "id": "WorkItemsList",
+          "name": "sap.fe.templates.ListReport",
+          "options": {
+            "settings": {
+              "contextPath": "/WorkItems",
+              "variantManagement": "Page",
+              "navigation": {
+                "WorkItems": { "detail": { "route": "WorkItemsObjectPage" } }
+              },
+              "controlConfiguration": {
+                "@com.sap.vocabularies.UI.v1.LineItem": {
+                  "tableSettings": {
+                    "type": "ResponsiveTable",
+                    "beforeRebindTable": ".extension.e.header.edit.ui.ext.controller.ListReportExt.onBeforeRebindWorkItems"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "WorkItemsObjectPage": {
+          "type": "Component",
+          "id": "WorkItemsObjectPage",
+          "name": "sap.fe.templates.ObjectPage",
+          "options": {
+            "settings": {
+              "contextPath": "/WorkItems",
+              "editableHeaderContent": false,
+              "controlConfiguration": {
+                "bulkEditItems/@com.sap.vocabularies.UI.v1.LineItem": {
+                  "tableSettings": {
+                    "type": "ResponsiveTable",
+                    "enableFullScreen": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "sap.fiori": { "registrationIds": [], "archeType": "transactional" },
+  "sap.fe": { "app": { "enableLazyLoading": true } }
+}

@@ -1,0 +1,11 @@
+{
+  "//": "B アプリ(movies) のバックエンド。A-cap とは独立した CAP Java プロジェクト。",
+  "name": "b-cap",
+  "version": "1.0.0",
+  "description": "B app (movies) backend - standalone CAP Java project",
+  "license": "ISC",
+  "//devDependencies": "cds コマンド(開発ツール)。アプリ実行は Maven/Java 側。",
+  "devDependencies": {
+    "@sap/cds-dk": "^8.9.3"
+  }
+}

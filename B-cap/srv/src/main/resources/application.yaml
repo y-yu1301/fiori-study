@@ -1,0 +1,12 @@
+
+---
+# B アプリ(movies) のバックエンドが待ち受けるポート。
+# A-cap(4004) と衝突しないよう 4005 にします（2つのバックエンドを同時起動できる）。
+server:
+  port: 4005
+
+spring:
+  config.activate.on-profile: default
+  sql.init.platform: h2
+cds:
+  data-source.auto-config.enabled: false

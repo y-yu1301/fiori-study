@@ -1,0 +1,38 @@
+
+---
+# A アプリ(bookshop) のバックエンドが待ち受けるポート。
+# このプロジェクトは OData API だけを提供します（UI5 は別プロジェクト A-ui5）。
+# フロント(A-ui5)は自分の ui5.yaml の proxy で、この 4004 の /odata へ接続します。
+server:
+  port: 4004
+
+app:
+  links:
+    # B-ui5 の Movies Object Page へ飛ぶためのURL。
+    # B-ui5/ui5.yaml の server.settings.httpPort と合わせる。
+    movies-object-page-base-url: "http://localhost:8083/index.html#/Movies(ID="
+
+spring:
+  config.activate.on-profile: default
+  sql.init.platform: h2
+cds:
+  data-source.auto-config.enabled: false
+
+  # ---------------------------------------------------------------------------
+  # ★リモートサービス：別アプリ B(MoviesService) を「A から消費」する設定。
+  #   srv/external/MoviesService.cds（Bの型定義）と、実際の接続先URLを結び付けます。
+  #   開発時は B(4005) を直接指します。本番は destination（BTP）に差し替えます。
+  #
+  #   ⚠️ ここは CAP Java のバージョンで書き方が分かれる“環境依存”ポイントです。
+  #      起動ログに「MoviesService」の登録・接続先が出るので、それを見て一緒に確定します。
+  #      もし起動でエラーになったら、このブロックを一旦コメントアウトして相談してください。
+  # ---------------------------------------------------------------------------
+  remote.services:
+    MoviesService:
+      type: "odata-v4"
+      # model は「CDS サービス名」（srv/external/MoviesService.cds の service 名）。
+      model: "MoviesService"
+      # 接続先(URL)は SAP Cloud SDK の「destination」で解決されます。
+      # destination 名を省略すると、このリモートサービス名 = "MoviesService" が使われます。
+      # ローカルの接続先は pom.xml の spring-boot-maven-plugin が環境変数 `destinations`
+      # として渡します（本番は BTP の destination サービスが同名で注入）。

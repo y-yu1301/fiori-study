@@ -1,0 +1,7 @@
+node_modules/
+srv/target/
+srv/src/gen/
+srv/src/main/resources/edmx/
+srv/src/main/resources/schema-h2.sql
+.flattened-pom.xml
+srv/.flattened-pom.xml

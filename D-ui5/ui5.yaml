@@ -1,0 +1,53 @@
+# yaml-language-server: $schema=https://sap.github.io/ui5-tooling/schema/ui5.yaml.json
+#
+# =============================================================================
+# アプリD フロントエンドの開発サーバ設定
+# =============================================================================
+# 画面        : http://localhost:8085
+# /odata の先 : http://localhost:4007（D-cap）
+#
+# TypeScript は ui5-tooling-transpile が「保存したそばから」JavaScript(UI5形式)へ
+# 変換します。ビルド成果物に .ts は含めません（omitTSFromBuildResult）。
+# =============================================================================
+
+specVersion: "4.0"
+metadata:
+  name: d-bulk-edit-ui
+type: application
+builder:
+  customTasks:
+    - name: ui5-tooling-transpile-task
+      afterTask: replaceVersion
+      configuration:
+        transformTypeScript: true
+        transformModulesToUI5:
+          overridesToOverride: true
+        omitTSFromBuildResult: true
+server:
+  settings:
+    httpPort: 8085
+  customMiddleware:
+    - name: ui5-tooling-transpile-middleware
+      afterMiddleware: compression
+      configuration:
+        transformTypeScript: true
+        transformModulesToUI5:
+          overridesToOverride: true
+    - name: fiori-tools-proxy
+      afterMiddleware: compression
+      configuration:
+        ignoreCertErrors: false
+        backend:
+          - path: /odata
+            url: http://localhost:4007
+        ui5:
+          path:
+            - /resources
+            - /test-resources
+          url: https://sapui5.hana.ondemand.com
+    - name: fiori-tools-appreload
+      afterMiddleware: compression
+      configuration:
+        port: 35732
+        path: webapp
+        delay: 300
