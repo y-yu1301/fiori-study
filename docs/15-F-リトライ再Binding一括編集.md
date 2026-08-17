@@ -12,6 +12,9 @@ Fは、HTTP Headerの設定タイミング問題を設計変更で解消する�
 5. Object Page本文Tableの`beforeRebindTable`でも同じ条件をFilterへ追加する
 6. CAPではHeaderがあればHeader、なければOData Filterを使う
 
+> メソッド単位の呼び出し順・データの形の変遷・各フェーズの注意点は
+> [`16-F-処理フローとデータの流れ.md`](16-F-処理フローとデータの流れ.md) にまとめてあります。
+
 プロジェクトとポートは次のとおりです。
 
 - Backend: `F-cap`（CAP Java、port 4009）
@@ -142,6 +145,72 @@ CAPログでは本文Tableがどちらの経路を採用したか確認できま
 WorkItemBulkItems READ source=HEADER ...
 WorkItemBulkItems READ source=ODATA_FILTER
 ```
+
+## デバッグ手順（どの時点で何の値が入っているかを見る）
+
+検索条件は「画面 → sessionStorage → HTTP Header / $filter → CAP」と形を変えながら流れます。
+どこで壊れたかを切り分けられるよう、**加工前と加工後を両方**出すようにしてあります。
+
+### Frontend（ブラウザのコンソール）
+
+詳細ログは既定でオフです。開発者ツールのコンソールで次を実行して有効化します。
+
+```js
+sessionStorage.setItem("f.retry.edit.debug", "1"); location.reload();
+```
+
+コンソールのフィルタ欄に `[f-retry-edit]` を入れると、この一連の出力だけが残ります。
+出力は実行順に番号が付いています。
+
+| ログの見出し | 見えるもの | 確認したいこと |
+|---|---|---|
+| `①LR beforeRebindTable` 加工前 | `event.bindingParams` / `api.getFilters()` の生の値、Filter を展開したもの | 画面の条件がどんな形で来ているか（項目名・演算子・Date型かどうか） |
+| `　└ applyFilter` | 1条件ずつの `oValue1 / oValue2` と変換後 | 拾えた条件・**無視した条件**（`★無視した条件` が出たらそれが原因） |
+| `　└ readSearchCondition` | どの経路（event / getFilters / Condition Map）で取れたか | イベントの形が想定と違っていないか |
+| `①LR beforeRebindTable` 加工後 | 保存するDTO | 期待した4項目が入っているか |
+| `③OP onBeforeBinding` | 開く Context のパス、**この時点でモデルにある値** | ここで `searchLocation` に値があれば、それは一覧から引き継いだ**古い**値 |
+| `③OP header (試行n)` | DTO と、ヘッダーへ載せる文字列 | 何回目の試行で成功したか。エンコード結果 |
+| `③OP header` 設定後 | Model のリクエストヘッダー | キー名・値が狙いどおりか |
+| `③OP header` refresh前 / refresh後 | ヘッダー側の3項目 | **古い値が残っているのか、届いていないのか**の切り分け |
+| `④OP 明細 beforeRebindTable` 追加前／追加後 | `bindingParams.filters` | 自分が足した条件と FE が足した条件の区別 |
+
+`refresh前 / refresh後` の読み方が要点です。
+
+| refresh前 | refresh後 | 意味 |
+|---|---|---|
+| 値あり | 同じ値 | 前回条件のキャッシュ（＝古いデータ）。再READが起きていない |
+| 空 | 値あり | 正常。初回READがヘッダー無しで先行しただけ |
+| 空 | 空 | CAP側でヘッダーを読めていない → 次のCAPログを確認 |
+
+ネットワークタブで実リクエストも確認できます（Filter に `bulkEditItems` と入力 → Request URL の `$filter`、Request Headers の `X-Search-Condition`）。
+
+### CAP（サーバのログ）
+
+`application.yaml` で `customer.f_retry_edit: DEBUG` にしてあります。目印は `[F-DEBUG]` です。
+
+```sh
+cd F-cap/srv && mvn spring-boot:run | grep F-DEBUG
+```
+
+| ログ | 見えるもの |
+|---|---|
+| `WorkItems READ header=あり/なし rows=n` | **そのREADにヘッダーが付いていたか**（付いていなければ virtual 項目は空） |
+| `加工前: ヘッダーの生の値` | URIエンコードされたままの文字列 |
+| `加工中: デコード後のJSON` | UTF-8 デコード後のJSON文字列 |
+| `加工後: DTO` | Java側のレコードへ変換した結果（項目が null なら Frontend で拾えていない） |
+| `virtual項目を詰めます` | ヘッダー側に表示する3つの値 |
+| `明細READ 加工前CQN` | UI5 が送った `$filter` を含む受信CQN |
+| `Rewritten bulk-items CQN` | `from` と `where` を書き換えた後のCQN |
+| `明細READ 返却件数` | 実際に返した件数（一覧の件数と一致するか） |
+| `Draft同期 <項目> before / after` | 保存時にDraftへ同期した値の前後（巻き戻り調査用） |
+
+切り分けの順序は次のとおりです。
+
+1. ブラウザ `①` の加工後DTO … 条件を拾えているか
+2. ブラウザ `③` の試行回数と設定後ヘッダー … ヘッダーを設定できたか
+3. CAP `WorkItems READ header=` … そのREADに**届いた**か（1・2が正常でもここが `なし` なら順序の問題）
+4. ブラウザ `③` の refresh前／後 … 古い値なのか未到達なのか
+5. CAP `明細READ 返却件数` … 明細の集合が一覧と一致するか
 
 ## 意図的に残している課題
 

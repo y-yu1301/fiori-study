@@ -37,6 +37,52 @@ import java.util.Optional;
  *
  * <p>この方式には条件の二重管理と通信タイミング依存があります。Fはそれを解消する
  * 設計例ではなく、リトライと再読込によって既存方式を動かす比較用サンプルです。</p>
+ *
+ * <h2>どのハンドラが、どのリクエストで、何を詰めるのか</h2>
+ *
+ * <pre>
+ *  画面                     リクエスト                          このクラスのメソッド
+ *  ─────────────────────────────────────────────────────────────────────────────
+ *  List Report 一覧      GET /WorkItems?$filter=...          afterReadWorkItems ★注意1
+ *  Object Page ヘッダー  GET /WorkItems(key)                 afterReadWorkItems
+ *  Object Page 明細      GET /WorkItems(key)/bulkEditItems   onReadBulkItems
+ *  明細の行編集          PATCH /WorkItemBulkItems(key)       beforeUpdateBulkItem
+ *  保存(Draft Activate)  PATCH /WorkItems(key,false) 相当    beforeUpdateWorkItemRoot
+ * </pre>
+ *
+ * <h3>★注意1：afterReadWorkItems は List Report の一覧READでも発火します</h3>
+ * <p>
+ * ハンドラの登録単位はエンティティなので、Object Page のルートREADだけでなく
+ * 一覧READにも入ります。Frontend はヘッダーを設定したあと削除しないため、
+ * 一度 Object Page を開いた後に一覧へ戻って再検索すると、
+ * <b>前回の条件のヘッダー</b>が付いた一覧READが飛び、各行に古い virtual 値が入ります。
+ * 一覧では virtual 項目を表示していないので画面上は無害ですが、
+ * その値は ODataModel のキャッシュに残り、
+ * Object Page がその行Contextを引き継いだ場合にヘッダー表示が古くなる原因になります。
+ * </p>
+ *
+ * <h3>★注意2：virtual 項目は DB のレコードではありません</h3>
+ * <p>
+ * {@code searchLocation / searchPeriod / searchStatus} は
+ * {@code db/schema.cds} で {@code virtual} と宣言してあり、DB列が存在しません。
+ * 値はリクエストごとに {@link #afterReadWorkItems} が {@code row.put(...)} で
+ * レスポンスへ載せているだけです。したがって
+ * </p>
+ * <ul>
+ *   <li>「保存」しても書き戻る先が無い（{@code EDITABLE_FIELDS} に含めていません）</li>
+ *   <li>ヘッダーが届かないREADでは、単に空になる（前回値が残るのではなく詰められない）</li>
+ *   <li>逆に、キャッシュから返されたレスポンスには<b>前回詰めた値</b>が残る</li>
+ * </ul>
+ *
+ * <h3>★注意3：ヘッダー経路と $filter 経路の非対称</h3>
+ * <p>
+ * OData V4 モデルのキャッシュキーは「リソースパス＋クエリオプション」です。
+ * {@code $filter} はキーに入りますが HTTP Header は入りません。
+ * そのため <b>明細（$filter経路）は条件が変われば必ず読み直され、
+ * ヘッダー（Header経路）は読み直されないことがあります</b>。
+ * 「明細は正しいのにヘッダーだけ古い／空」という症状はこの非対称から生じます。
+ * Frontend の {@code requestRefresh()} はその救済であり、解決ではありません。
+ * </p>
  */
 @Component
 @ServiceName("WorkItemService")
@@ -59,14 +105,34 @@ public class WorkItemsHandler implements EventHandler {
     private PersistenceService db;
 
     /**
-     * Object Page本文テーブルのNavigationを、検索結果一覧用Entity Setへ差し替えます。
+     * <b>明細側の集合を決める場所です。</b>
+     *
+     * <p>Object Page本文テーブルのNavigationを、検索結果一覧用Entity Setへ差し替えます。</p>
      *
      * <p>HeaderがあるときはHeaderを優先し、受信した$filterの業務条件を置き換えます。
      * Headerがないときはwhereを変更しないため、beforeRebindTableで追加した$filterが
      * フォールバックとして働きます。</p>
+     *
+     * <p>
+     * ★{@code @On} で自前実行しているのは、受信CQNの {@code from} を差し替える必要が
+     * あるためです。標準のままだと Navigation の制約により「選択した1行」しか返りません。
+     * ヘッダー側（{@link #afterReadWorkItems}）が {@code @After} で表示値を足すだけなのと
+     * 対照的に、こちらはクエリそのものを組み替えます。
+     * </p>
+     *
+     * <p>
+     * ★{@code orderBy / limit / columns} は受信CQNのまま残します。
+     * 画面の並べ替え・ページングは標準に任せ、差し替えるのは
+     * 「どのEntity Setを読むか」と「業務のWHERE」だけに限定しています。
+     * </p>
      */
     @On(event = CqnService.EVENT_READ, entity = "WorkItemService.WorkItemBulkItems")
     public Result onReadBulkItems(CdsReadEventContext context) {
+        // ★デバッグの起点：加工前の受信CQN（＝UI5が送った $filter がそのまま入っている）
+        //   ここに beforeRebindTable で足した条件が見えるかどうかで、
+        //   Frontend側の追加が届いているかを判定できます。
+        logger.debug("[F-DEBUG] 明細READ 加工前CQN: {}", context.getCqn());
+
         Optional<SearchCondition> headerCondition = readSearchCondition(context);
         String rewrittenCqn = rewriteBulkItemsQuery(context, headerCondition);
 
@@ -78,24 +144,83 @@ public class WorkItemsHandler implements EventHandler {
         logger.debug("Rewritten bulk-items CQN: {}", rewrittenCqn);
 
         // FEの一覧は$count=trueを使用するため、独自実行でもinlineCountを返します。
-        return db.run(Select.cqn(rewrittenCqn).inlineCount());
+        Result result = db.run(Select.cqn(rewrittenCqn).inlineCount());
+
+        // ★加工後に実際に返した件数。画面の表示件数と一致するかを突き合わせます。
+        //   一覧の件数と違う場合、条件の変換（Header または $filter）でズレています。
+        logger.info("[F-DEBUG] 明細READ 返却件数={}", result.rowCount());
+        return result;
     }
 
     /**
-     * Object Pageルートは、選択された1行を標準Navigationのキーで取得します。
+     * <b>ヘッダー側の表示値を詰める唯一の場所です。</b>
+     *
+     * <p>Object Pageルートは、選択された1行を標準Navigationのキーで取得します。
      * Headerが付かずに最初のREADが走った場合、virtual項目は空のままです。
      * FrontendがHeader設定に成功した後でルートContextをrefreshし、このAfter READを
-     * もう一度実行させるのがFの再表示処理です。
+     * もう一度実行させるのがFの再表示処理です。</p>
+     *
+     * <p>
+     * {@code @After} にしているのは、DBから読んだ行に「表示専用の値を足す」処理だからです。
+     * WHERE やキーには一切関与しません（＝選択行の取得は完全に標準のまま）。
+     * </p>
+     *
+     * <p>
+     * ★ヘッダーが無いときに<b>何もしない</b>のは意図的です。
+     * 「前回の条件を覚えておいて代わりに使う」ような後始末をサーバ側に入れると、
+     * 画面に表示されている条件と実際に編集している集合がずれても気づけなくなります。
+     * 詰められなかったこと（＝空表示）を、そのまま症状として見せています。
+     * </p>
+     *
+     * <p>
+     * ★このメソッドは一覧READでも走ります（クラスJavadocの注意1）。
+     * {@code rows} が一覧の全行になるため、条件の値が全行へ同じように入ります。
+     * 表示していないので害はありませんが、キャッシュには残ります。
+     * </p>
      */
     @After(event = CqnService.EVENT_READ, entity = "WorkItemService.WorkItems")
     public void afterReadWorkItems(CdsReadEventContext context, List<CdsData> rows) {
-        readSearchCondition(context).ifPresent(condition -> rows.forEach(row -> {
-            row.put("searchLocation", display(condition.location(), "未指定"));
-            row.put("searchPeriod", condition.periodText());
-            row.put("searchStatus", display(condition.status(), "未指定"));
+        Optional<SearchCondition> condition = readSearchCondition(context);
+
+        // ★ここが「ヘッダーが届いたかどうか」を判定する決定的なログです。
+        //   Frontend のコンソールに "Header setup succeeded" が出ていても、
+        //   このログが present=false なら、そのREADはヘッダー設定より前に飛んでいます
+        //   （＝リトライが間に合っていない）。両方のログを時刻で並べて確認してください。
+        //
+        //   rows.size() が1件ならObject Pageのルートread、複数なら一覧readです
+        //   （一覧readでも発火する点はクラスJavadocの注意1を参照）。
+        logger.info("[F-DEBUG] WorkItems READ header={} rows={} cqn={}",
+                condition.isPresent() ? "あり" : "なし（virtual項目は空になります）",
+                rows.size(), context.getCqn());
+
+        // ヘッダーが無ければ ifPresent の中は実行されません（virtual項目は空のまま）。
+        condition.ifPresent(value -> rows.forEach(row -> {
+            // 加工前：ヘッダーから復元したDTO／加工後：画面へ表示する文字列
+            String location = display(value.location(), "未指定");
+            String period = value.periodText();
+            String status = display(value.status(), "未指定");
+            logger.debug("[F-DEBUG] virtual項目を詰めます id={} location={} period={} status={}",
+                    row.get("ID"), location, period, status);
+
+            row.put("searchLocation", location);
+            row.put("searchPeriod", period);
+            row.put("searchStatus", status);
         }));
     }
 
+    /**
+     * 明細テーブルで編集された行は、Draftを経由せず<b>Active行への通常のUPDATE</b>として
+     * ここへ到達します（{@code WorkItemBulkItems} は非Draft投影のため）。
+     *
+     * <p>保存時のイベント順序は次のとおりです。</p>
+     * <ol>
+     *   <li>明細の行編集 … PATCH /WorkItemBulkItems(key) → このメソッド（＝即座にActiveへ反映）</li>
+     *   <li>「保存」 … Draft Activate → {@link #beforeUpdateWorkItemRoot}</li>
+     * </ol>
+     *
+     * <p>1が先に確定してしまうため、2でルートのDraft値がActiveを上書きしないよう
+     * 同期処理が必要になります。詳細は {@link #beforeUpdateWorkItemRoot} を参照してください。</p>
+     */
     @Before(event = CqnService.EVENT_UPDATE, entity = "WorkItemService.WorkItemBulkItems")
     public void beforeUpdateBulkItem(CdsData row) {
         // Object Pageで変更された各行は通常のUPDATEとしてここへ到達します。
@@ -128,6 +253,14 @@ public class WorkItemsHandler implements EventHandler {
                 .stream()
                 .findFirst()
                 .ifPresent(activeRow -> {
+                    // ★加工前後を並べて出します。
+                    //   before = Draftが持っている（＝古い可能性のある）値
+                    //   after  = 明細テーブルの更新で確定しているActive側の値
+                    //   保存後に値が巻き戻る症状が出たときは、この2つを比較してください。
+                    EDITABLE_FIELDS.forEach(field -> logger.debug(
+                            "[F-DEBUG] Draft同期 {} : before={} after={}",
+                            field, draftRootRow.get(field), activeRow.get(field)));
+
                     EDITABLE_FIELDS.forEach(field -> draftRootRow.put(field, activeRow.get(field)));
                     logger.info("WorkItems draft root synced from active bulk-edit row before activation: {}", id);
                 });
@@ -137,18 +270,45 @@ public class WorkItemsHandler implements EventHandler {
         return value == null ? null : String.valueOf(value);
     }
 
-    /** HTTP Headerをデコードし、Frontendと共通の小さなDTOへ変換します。 */
+    /**
+     * HTTP Headerをデコードし、Frontendと共通の小さなDTOへ変換します。
+     *
+     * <p>
+     * {@code context.getParameterInfo()} が、そのリクエストのHTTPヘッダー・クエリ等の
+     * 「通信の付帯情報」を持っています。ヘッダー名の判定は大文字小文字を区別しないため、
+     * 定数は小文字で持っています（Frontendは {@code X-Search-Condition} で送信）。
+     * </p>
+     *
+     * <p>
+     * ★デバッグの要点：この3行が「加工前 → 加工後」です。
+     * 生のヘッダー値（URIエンコード済み）、デコード後のJSON文字列、DTOの3段を出すので、
+     * どこで壊れたのかを切り分けられます。
+     * </p>
+     * <ul>
+     *   <li>生の値が出ない → Frontendが設定できていない（タイミング or ヘッダー名の誤り）</li>
+     *   <li>生の値は出るがJSONが壊れている → エンコード／デコードの不一致</li>
+     *   <li>DTOの項目がnull → Frontend側のDTO組み立て（applyFilter）で拾えていない</li>
+     * </ul>
+     */
     private Optional<SearchCondition> readSearchCondition(CdsReadEventContext context) {
         String encoded = context.getParameterInfo().getHeader(SEARCH_CONDITION_HEADER);
         if (encoded == null || encoded.isBlank()) {
+            logger.debug("[F-DEBUG] ヘッダー {} は付いていません。", SEARCH_CONDITION_HEADER);
             return Optional.empty();
         }
+
+        logger.debug("[F-DEBUG] 加工前: ヘッダーの生の値 = {}", encoded);
 
         try {
             // HTTP Headerへ日本語を安全に載せるため、FrontendはURIエンコードしています。
             String json = URLDecoder.decode(encoded, StandardCharsets.UTF_8);
-            return Optional.of(JSON.readValue(json, SearchCondition.class));
+            logger.debug("[F-DEBUG] 加工中: デコード後のJSON = {}", json);
+
+            SearchCondition condition = JSON.readValue(json, SearchCondition.class);
+            logger.debug("[F-DEBUG] 加工後: DTO = {}", condition);
+            return Optional.of(condition);
         } catch (IllegalArgumentException | JsonProcessingException exception) {
+            // 握りつぶさずに400へ落とします（条件不明のまま全件を返す事故を防ぐため）。
             throw new IllegalArgumentException("X-Search-Condition is not valid JSON.", exception);
         }
     }

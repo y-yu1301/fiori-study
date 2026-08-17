@@ -8,3 +8,23 @@ spring:
 
 cds:
   data-source.auto-config.enabled: false
+
+# -----------------------------------------------------------------------------
+# ログ設定（検索条件の受け渡しを追うため）
+# -----------------------------------------------------------------------------
+# WorkItemsHandler は「加工前 → 加工後」を DEBUG で出します。
+#   ・加工前: HTTP ヘッダーの生の値 / 受信CQN
+#   ・加工中: デコード後のJSON
+#   ・加工後: DTO / 書き換え後CQN / 返却件数
+# 目印は [F-DEBUG] なので、ターミナルで絞り込めます:
+#   mvn spring-boot:run | grep F-DEBUG
+#
+# 静かにしたいときは customer.f_retry_edit を INFO に戻してください
+# （INFO でも「ヘッダーあり／なし」と件数は出ます）。
+logging:
+  level:
+    customer.f_retry_edit: DEBUG
+    # 実際に発行されたSQLを見たいときに有効化します（条件が本当に効いているかの最終確認）
+    # com.sap.cds.impl.sql: DEBUG
+    # OData のリクエスト内容（URL・$filter）を見たいとき
+    # com.sap.cds.services.impl.odatav4: DEBUG
